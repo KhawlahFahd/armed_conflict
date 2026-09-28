@@ -92,7 +92,7 @@ regions <- read.table("..\\data\\raw\\regions.txt", header= TRUE)
 nrow(regions)
 ncol(regions)
 ```
-There are `r nrow(regions)` regions included in the data set.
+There are `r nrow(regions)` countries included in the regions data set.
 
 
 **Third**, subset the `regions` data set to only include countries from the `countries` data set.
