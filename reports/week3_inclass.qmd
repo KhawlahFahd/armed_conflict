@@ -1,0 +1,163 @@
+---
+title: "Week 3 In-class Assignment"
+author: "Khawlah Alshammari"
+format: 
+  pdf:
+    geometry:
+      - top=30mm
+      - left=20mm
+      - heightrounded
+---
+
+```{r}
+#| output: false
+#| warning: false
+#| message: false
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(janitor)
+```
+
+**Prepare World Bank data**
+
+1- Reading the data. First we read in maternal mortality data, then changing to long format.
+
+```{r}
+# Read in maternal mortality data
+matmor <- read.csv("../data/raw/maternal_mortality.csv", header = TRUE)
+
+# Change wide to long format
+matmor_long <- matmor |>
+  pivot_longer(cols = starts_with("X"),
+                 names_to = "year",
+                 names_prefix = "X", # removes X from year column
+                 values_to = "maternal_mortality") |> 
+  mutate(year = as.numeric(year)) |> # change year to numeric
+  select(iso, year, maternal_mortality)
+
+```
+
+
+2- Creating a function that can be used to convert all data sets we have into long formats.
+
+
+```{r}
+mortality_fun <- function(data, varname) {
+
+    data |>
+        pivot_longer(
+            cols = starts_with("X"),
+            names_to = "year",
+            names_prefix = "X",
+            values_to = varname
+        ) |>
+        mutate(year = as.numeric(year)) |>
+        select(iso, year, all_of(varname))
+}
+```
+
+
+```{r}
+infmor <- read.csv("../data/raw/infant_mortality.csv", header = TRUE)
+
+infmor_long <- mortality_fun(
+    data = infmor,
+    varname = "infant_mortality"
+)
+
+neomor <- read.csv(("../data/raw/neonatal_mortality.csv"), header = TRUE)
+
+neomor_long <- mortality_fun(
+    data = neomor,
+    varname = "neonatal_mortality"
+)
+
+un5mor <- read.csv(("../data/raw/under5_mortality.csv"), header = TRUE)
+
+un5mor_long <- mortality_fun(
+    data = un5mor,
+    varname = "under5_mortality"
+)
+
+```
+
+
+**Prepare disaster data**
+
+1- Reading the disaster data.
+
+```{r}
+disaster <- read.csv("../data/raw/disaster.csv", header = TRUE)
+```
+
+2- Cleaning the variable names, then including only data for 2000-2019, and finally creating th dummey variable that counts droughts and earthquakes.
+
+
+```{r}
+disaster_clean <- disaster |>
+    clean_names() |>
+    filter(
+        year >= 2000,
+        year <= 2019,
+        disaster_type %in% c("Earthquake", "Drought")
+    ) |>
+    select(year, iso, disaster_type) |>
+    mutate(
+        earthquake = if_else(disaster_type == "Earthquake",1,0),
+        drought = if_else(disaster_type == "Drought", 1, 0)
+    ) |>
+    group_by(year,iso) |>
+    summarise(
+        earthquake = max(earthquake),
+        drought = max(drought),
+        .groups = "drop"
+    )
+```
+
+
+**Prepare conflict data**
+
+1- Reading the conflict data set.
+
+```{r}
+conflict <- read.csv("../data/raw/conflict.csv", header = TRUE)
+```
+
+2- Creating the binary armed conflict vatiable.
+
+```{r}
+conflict_clean <- conflict |>
+  mutate(
+    armed_conflict = if_else(best >= 25, 1, 0)
+    # binary variable indicating the presence of conflict for each country–year observation (0 = no, <25 battle-related deaths; 1 = yes, >=25 battle-related deaths)
+  ) |>
+  group_by(iso, year) |>
+  summarise(
+    armed_conflict = as.integer(max(armed_conflict)),
+    .groups = "drop"
+  )
+
+conflict_clean <- conflict_clean |>
+  mutate(
+    year = as.integer(year+1)
+  ) |>
+  ungroup()
+```
+
+**Merging all data sets**
+
+```{r}
+final_data <- list(
+  matmor_long,
+  infmor_long,
+  neomor_long,
+  un5mor_long,
+  disaster_clean,
+  conflict_clean
+) |>
+  reduce(full_join, by = c("iso", "year"))
+
+write.csv(final_data,"../data/processed/final_data.csv", row.names=FALSE)
+```
