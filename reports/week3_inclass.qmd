@@ -26,7 +26,7 @@ library(janitor)
 
 ```{r}
 # Read in maternal mortality data
-matmor <- read.csv("../data/raw/maternal_mortality.csv", header = TRUE)
+matmor <- read.csv("./data//raw//maternal_mortality.csv", header = TRUE)
 
 # Change wide to long format
 matmor_long <- matmor |>
@@ -60,21 +60,21 @@ mortality_fun <- function(data, varname) {
 
 
 ```{r}
-infmor <- read.csv("../data/raw/infant_mortality.csv", header = TRUE)
+infmor <- read.csv("./data/raw/infant_mortality.csv", header = TRUE)
 
 infmor_long <- mortality_fun(
     data = infmor,
     varname = "infant_mortality"
 )
 
-neomor <- read.csv(("../data/raw/neonatal_mortality.csv"), header = TRUE)
+neomor <- read.csv(("./data/raw/neonatal_mortality.csv"), header = TRUE)
 
 neomor_long <- mortality_fun(
     data = neomor,
     varname = "neonatal_mortality"
 )
 
-un5mor <- read.csv(("../data/raw/under5_mortality.csv"), header = TRUE)
+un5mor <- read.csv(("./data/raw/under5_mortality.csv"), header = TRUE)
 
 un5mor_long <- mortality_fun(
     data = un5mor,
@@ -89,7 +89,7 @@ un5mor_long <- mortality_fun(
 1- Reading the disaster data.
 
 ```{r}
-disaster <- read.csv("../data/raw/disaster.csv", header = TRUE)
+disaster <- read.csv("./data/raw/disaster.csv", header = TRUE)
 ```
 
 2- Cleaning the variable names, then including only data for 2000-2019, and finally creating th dummey variable that counts droughts and earthquakes.
@@ -122,7 +122,7 @@ disaster_clean <- disaster |>
 1- Reading the conflict data set.
 
 ```{r}
-conflict <- read.csv("../data/raw/conflict.csv", header = TRUE)
+conflict <- read.csv("./data/raw/conflict.csv", header = TRUE)
 ```
 
 2- Creating the binary armed conflict vatiable.
@@ -149,15 +149,43 @@ conflict_clean <- conflict_clean |>
 **Merging all data sets**
 
 ```{r}
+covariates <- read.csv("./data/raw/covariates.csv", header = TRUE)
+
 final_data <- list(
   matmor_long,
   infmor_long,
   neomor_long,
   un5mor_long,
   disaster_clean,
-  conflict_clean
+  conflict_clean,
+  covariates
 ) |>
   reduce(full_join, by = c("iso", "year"))
 
-write.csv(final_data,"../data/processed/final_data.csv", row.names=FALSE)
+final_data <- final_data |>
+  select(
+    iso,
+    year,
+    armed_conflict,
+    maternal_mortality,
+    infant_mortality,
+    under5_mortality,
+    neonatal_mortality,
+    drought,
+    earthquake,
+    gdp_1000,
+    oecd,
+    pop_dens,
+    urban,
+    age_dep,
+    male_edu,
+    temp,
+    rainfall_1000
+  )
+
+write.csv(
+  final_data,
+  "./data/processed/final_data.csv",
+  row.names = FALSE
+)
 ```
