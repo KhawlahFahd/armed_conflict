@@ -50,7 +50,7 @@ un5mor_long <- mortality_fun(un5mor, "under5_mortality")
 disaster <- read.csv("./data/raw/disaster.csv")
 
 disaster_clean <- disaster |>
-  clean_names() |>
+   janitor::clean_names() |>
   filter(
     year >= 2000,
     year <= 2019,

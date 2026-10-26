@@ -97,7 +97,7 @@ disaster <- read.csv("./data/raw/disaster.csv", header = TRUE)
 
 ```{r}
 disaster_clean <- disaster |>
-    clean_names() |>
+     janitor::clean_names() |>
     filter(
         year >= 2000,
         year <= 2019,
