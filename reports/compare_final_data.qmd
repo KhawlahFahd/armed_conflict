@@ -1,0 +1,206 @@
+---
+title: "Comparison of Final Data Sets"
+author: "Khawlah Alshammari"
+format: pdf
+---
+
+```{r}
+#| warning: false
+#| message: false
+
+library(tidyverse)
+library(janitor)
+```
+
+## Read my final data
+
+```{r}
+my_final_data <- read.csv("./data/processed/final_data.csv")
+```
+
+## Create coding-agent final data
+
+```{r}
+# Mortality data
+matmor <- read.csv("./data/raw/maternal_mortality.csv")
+infmor <- read.csv("./data/raw/infant_mortality.csv")
+neomor <- read.csv("./data/raw/neonatal_mortality.csv")
+un5mor <- read.csv("./data/raw/under5_mortality.csv")
+
+mortality_fun <- function(data, varname) {
+  data |>
+    pivot_longer(
+      cols = starts_with("X"),
+      names_to = "year",
+      names_prefix = "X",
+      values_to = varname
+    ) |>
+    mutate(year = as.numeric(year)) |>
+    select(iso, year, all_of(varname))
+}
+
+matmor_long <- mortality_fun(matmor, "maternal_mortality")
+infmor_long <- mortality_fun(infmor, "infant_mortality")
+neomor_long <- mortality_fun(neomor, "neonatal_mortality")
+un5mor_long <- mortality_fun(un5mor, "under5_mortality")
+```
+
+```{r}
+# Disaster data
+disaster <- read.csv("./data/raw/disaster.csv")
+
+disaster_clean <- disaster |>
+  clean_names() |>
+  filter(
+    year >= 2000,
+    year <= 2019,
+    disaster_type %in% c("Earthquake", "Drought")
+  ) |>
+  select(year, iso, disaster_type) |>
+  mutate(
+    earthquake = if_else(disaster_type == "Earthquake", 1, 0),
+    drought = if_else(disaster_type == "Drought", 1, 0)
+  ) |>
+  group_by(iso, year) |>
+  summarise(
+    earthquake = max(earthquake),
+    drought = max(drought),
+    .groups = "drop"
+  )
+```
+
+```{r}
+# Conflict data
+conflict <- read.csv("./data/raw/conflict.csv")
+
+conflict_clean <- conflict |>
+  mutate(
+    armed_conflict = if_else(best >= 25, 1, 0)
+  ) |>
+  group_by(iso, year) |>
+  summarise(
+    armed_conflict = as.integer(max(armed_conflict)),
+    .groups = "drop"
+  ) |>
+  mutate(
+    year = as.integer(year + 1)
+  )
+```
+
+```{r}
+# Covariates
+covariates <- read.csv("./data/raw/covariates.csv")
+```
+
+```{r}
+# Coding-agent version of final data
+agent_final_data <- list(
+  matmor_long,
+  infmor_long,
+  neomor_long,
+  un5mor_long,
+  disaster_clean,
+  conflict_clean,
+  covariates
+) |>
+  reduce(full_join, by = c("iso", "year")) |>
+  select(
+    iso,
+    year,
+    armed_conflict,
+    maternal_mortality,
+    infant_mortality,
+    under5_mortality,
+    neonatal_mortality,
+    drought,
+    earthquake,
+    gdp_1000,
+    oecd,
+    pop_dens,
+    urban,
+    age_dep,
+    male_edu,
+    temp,
+    rainfall_1000
+  )
+```
+
+## Compare dimensions
+
+```{r}
+dim(my_final_data)
+dim(agent_final_data)
+```
+
+## Compare variable names
+
+```{r}
+names(my_final_data)
+names(agent_final_data)
+```
+
+## Compare structure
+
+```{r}
+str(my_final_data)
+str(agent_final_data)
+```
+
+## Standardize row order and variable types
+
+```{r}
+my_final_data_compare <- my_final_data |>
+  arrange(iso, year) |>
+  mutate(
+    year = as.integer(year),
+    drought = as.integer(drought),
+    earthquake = as.integer(earthquake)
+  ) |>
+  as.data.frame()
+
+agent_final_data_compare <- agent_final_data |>
+  arrange(iso, year) |>
+  mutate(
+    year = as.integer(year),
+    drought = as.integer(drought),
+    earthquake = as.integer(earthquake)
+  ) |>
+  as.data.frame()
+```
+
+## Check whether the data sets are identical
+
+```{r}
+all.equal(
+  my_final_data_compare,
+  agent_final_data_compare
+)
+```
+
+## Compare observations
+
+```{r}
+anti_join(
+  my_final_data,
+  agent_final_data,
+  by = names(my_final_data)
+)
+```
+
+```{r}
+anti_join(
+  agent_final_data,
+  my_final_data,
+  by = names(agent_final_data)
+)
+```
+
+## Conclusion
+
+The final data set created from my Week 3 code was compared with a second version independently recreated from the raw data.
+
+Both data sets contained 3,732 observations and 17 variables, with the same variable names. Initial differences identified by `all.equal()` were due to row ordering and differences in variable classes. After sorting the observations and standardizing the variable types, `all.equal()` returned `TRUE`.
+
+In addition, both `anti_join()` comparisons returned zero rows, indicating that there were no observations present in one data set but absent from the other.
+
+Therefore, the final data set created from my Week 3 code and the data set independently recreated by the coding agent contain the same observations and values.
