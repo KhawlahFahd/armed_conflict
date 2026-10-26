@@ -1,0 +1,141 @@
+---
+title: "Exploratory Data Analysis"
+auther: "Khawlah Alshammari"
+format: pdf
+---
+
+
+```{r}
+#| warning: false
+#| message: false
+
+library(tidyverse)
+library(knitr)
+```
+
+## 1. Read the data
+
+
+```{r}
+final_data <- read.csv("../data/processed/final_data.csv")
+eda_data <- final_data |>
+    filter(year>= 2000, year<=2019)
+```
+
+
+## 2. Overview of the dataset
+
+
+```{r}
+dim(eda_data)
+names(eda_data)
+head(eda_data)
+```
+
+
+## 3. Look at missing data
+
+
+```{r}
+colSums(is.na(eda_data))
+```
+
+Since my EDA focuses on maternal mortality and armed conflict, I also examined missing values specifically for those two variables.
+
+
+```{r}
+eda_data |>
+     summarise(
+    missing_maternal_mortality = sum(is.na(maternal_mortality)),
+    missing_armed_conflict = sum(is.na(armed_conflict))
+)
+```
+
+
+## 4. Distribution of maternal mortality 
+
+First, I examined summery statistics for maternal mortality.
+
+
+```{r}
+summary(eda_data$maternal_mortality)
+```
+
+
+Then I Looked at the distribution using a Histogram plot.
+
+
+```{r}
+eda_data |>
+    ggplot(aes(x=maternal_mortality)) +
+    geom_histogram(bins = 50) +
+    labs(
+        title = "Distribution of Maternal Mortality Rates",
+        x = "Maternal Mortality Rate",
+        y = "Counts"
+    )
+```
+
+
+## 5. Maternal Mortality and Armed Conflict
+
+Next, I compared maternal mortality rates for country-year observations with and without armed conflict.
+Here, an armed conflict value of 0 represents no armed conflict and a value of 1 represents the presence of armed conflict.
+
+
+```{r}
+eda_data |>
+    filter(!is.na(armed_conflict))|>
+    ggplot(
+        aes(
+            x = factor(armed_conflict),
+            y = maternal_mortality
+        )
+    )+
+        geom_boxplot()+
+        labs(
+            title = "Maternal Mortality by Armed Conflict Status",
+            x = "Armed Conflict",
+            y = "Maternal Mortality Rates"
+        )
+```
+
+
+## 6. Summary by Armed Conflict Status
+
+I calculated the mean and median maternal mortality rates for observations with and without armed conflict.
+
+
+```{r}
+conflict_summary <- eda_data|>
+    filter(
+        !is.na(armed_conflict),
+        !is.na(maternal_mortality)
+    )|>
+        group_by(armed_conflict)|>
+        summarise(
+            N = n(),
+            Mean_Maternal_Mortality = mean(maternal_mortality),
+            Median_Maternal_Mortality = median(maternal_mortality)
+        )
+
+    kable(
+        conflict_summary,
+        caption = "Maternal Mortality by Armed Conflict",
+        digits = 1
+    )
+```
+
+
+## 7. Findings
+
+Maternal mortality rates showed a strongly right-skewed distribution. Among the available observations, the median maternal mortality rate was 66, while the mean was substantially higher at 210.6.
+Values ranged from 2 to 2480, suggesting that a relatively small number of country-year observations had very high maternal mortality rates. There were 438 missing observations for maternal mortality.
+
+There was also substantial missingness in the armed conflict variable, with 2708 missing observations. Therefore, the comparison between armed conflict groups was based only on observations with non-missing values for both armed conflict and maternal mortality.
+
+Among these complete observations, maternal mortality was higher in country-year observations classified as experiencing armed conflict. The mean maternal mortality rate was 468.4 for observations with armed conflict compared with 263 for observations without armed conflict. Similarly, the median was 354 for the armed conflict group compared to 119 for the non-conflict group.
+
+The boxplot showed the same general pattern, with the distribution of maternal mortality shifted upward among observations with armed conflict. The armed conflict group also appeared to have greater variability and included several observations with particularly high maternal mortality rates.
+
+Overall, this exploratory analysis suggests that higher maternal mortality rates are associated with the presence of armed conflict in the data set. However, these results are descriptive and do not establish a causal relationship. The substantial amount of missing data, particularly for the armed conflict variable, should also be considered when interpreting these findings. 
