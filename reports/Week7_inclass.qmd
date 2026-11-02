@@ -1,0 +1,21 @@
+---
+title: "Week 7: Reproducible tables and figures"
+author: "Khawlah Alshammari"
+format: pdf
+
+---
+
+## Table 1: Descriptive Statistics 
+
+This table summerizes the study variables by armed conflict exposurefor 186 countries from 2000 to 2019. The data were grouped into two categories: no armed conflict and armed conflict.
+
+Continuous variables were summarized using means and standard deviations, while binary variables were presented as frequencies and percentages. Missing observations were also reported for each variable. The table was created using the gtsummary package in R.
+
+
+## Figure 1: Overall Maternal Mortality Trend
+
+To create Figure 1, I selected countries where maternal mortality was higher in 2017 than in 2000. I then plotted maternal mortality rates over time for these countries using ggplot2.
+
+Each country is represented by a separate line and color to illustrate changes in maternal mortality over the study period.
+
+
