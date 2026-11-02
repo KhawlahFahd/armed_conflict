@@ -128,61 +128,74 @@ conflict <- read.csv("./data/raw/conflict.csv", header = TRUE)
 2- Creating the binary armed conflict vatiable.
 
 ```{r}
-conflict_clean <- conflict |>
-  mutate(
-    armed_conflict = if_else(best >= 25, 1, 0)
-    # binary variable indicating the presence of conflict for each country–year observation (0 = no, <25 battle-related deaths; 1 = yes, >=25 battle-related deaths)
-  ) |>
-  group_by(iso, year) |>
+# Step 1: Sum deaths for each conflict within each country and year
+conflict_year <- conflict |>
+  group_by(iso, year, conflict_id) |>
   summarise(
-    armed_conflict = as.integer(max(armed_conflict)),
+    total_deaths = sum(best),
     .groups = "drop"
   )
 
-conflict_clean <- conflict_clean |>
+# Step 2: Create the binary conflict indicator for each country-year
+conflict_clean <- conflict_year |>
   mutate(
-    year = as.integer(year+1)
+    armed_conflict = if_else(total_deaths >= 25, 1L, 0L)
   ) |>
-  ungroup()
+  group_by(iso, year) |>
+  summarise(
+    armed_conflict = as.integer(any(armed_conflict == 1L)),
+    .groups = "drop"
+  ) |>
+  # Step 3: Lag conflict by one year
+  mutate(year = year + 1L)
 ```
 
 **Merging all data sets**
 
 ```{r}
-covariates <- read.csv("./data/raw/covariates.csv", header = TRUE)
+# Read covariates
+covariates <- read.csv(
+  "./data/raw/covariates.csv",
+  header = TRUE
+)
 
+# Create the full country-year dataset
 final_data <- list(
   matmor_long,
   infmor_long,
   neomor_long,
   un5mor_long,
-  disaster_clean,
-  conflict_clean,
   covariates
 ) |>
-  reduce(full_join, by = c("iso", "year"))
+  reduce(full_join, by = c("iso", "year")) |>
+  filter(year >= 2000, year <= 2019)
 
+# Check that each country-year appears only once
+stopifnot(
+  !anyDuplicated(final_data[c("iso", "year")])
+)
+
+# Merge conflict and disaster indicators
 final_data <- final_data |>
-  select(
-    iso,
-    year,
-    armed_conflict,
-    maternal_mortality,
-    infant_mortality,
-    under5_mortality,
-    neonatal_mortality,
-    drought,
-    earthquake,
-    gdp_1000,
-    oecd,
-    pop_dens,
-    urban,
-    age_dep,
-    male_edu,
-    temp,
-    rainfall_1000
+  left_join(
+    conflict_clean,
+    by = c("iso", "year"),
+    relationship = "many-to-one"
+  ) |>
+  left_join(
+    disaster_clean,
+    by = c("iso", "year"),
+    relationship = "many-to-one"
+  ) |>
+  mutate(
+    armed_conflict = coalesce(armed_conflict, 0L),
+    drought = coalesce(drought, 0L),
+    earthquake = coalesce(earthquake, 0L)
   )
+```
 
+
+```{r}
 write.csv(
   final_data,
   "./data/processed/final_data.csv",
