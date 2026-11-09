@@ -2,12 +2,7 @@
 library(here)
 library(plm)
 library(dplyr)
-library(tidyverse)
-library(texreg)
-library(modelsummary)
-library(gt)
 library(gtsummary)
-library(flextable)
 finaldata <- read.csv(here("data", "processed", "final_data.csv"))
 
 
