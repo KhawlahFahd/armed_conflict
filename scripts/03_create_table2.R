@@ -91,3 +91,20 @@ table2 <- tbl_merge(
 
 # Display Table 2
 table2
+
+# saving as pdf
+ gt::gtsave(
+   gtsummary::as_gt(table2),
+   filename = here::here(
+     "reports",
+     "table02_armed_conflict.pdf"
+   ),
+   expand = 10
+ )
+
+#saving as HTML
+
+gt::gtsave(
+   gtsummary::as_gt(table2),
+   filename = here("reports", "table02_armed_conflict.html")
+ )
