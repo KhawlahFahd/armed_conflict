@@ -1,0 +1,248 @@
+---
+title: "Multiple Imputation for Handling Missing Data"
+subtitle: "Week 8 In-class Assignment"
+author: "Khawlah Alshammari"
+format:
+  pdf:
+    geometry:
+      - margin=12mm
+---
+
+```{r}
+#| echo: true
+#| message: false
+#| include: false
+library(here)
+library(dplyr)
+library(plm)
+library(mice)
+library(naniar)
+library(knitr)
+
+finaldata <- read.csv(here("data", "processed", "final_data.csv"))
+
+finaldata <- finaldata |>
+    mutate(loggdp = log(gdp_1000)) |>
+    select(-gdp_1000)
+
+summary(finaldata)
+colSums(is.na(finaldata))
+```
+
+## Fitting the Complete-Case Models 
+```{r}
+preds <- as.formula(" ~ armed_conflict + loggdp + oecd + pop_dens + urban +age_dep + male_edu + temp + rainfall_1000 + earthquake + drought")
+
+
+fit_model <- function(outcome) {
+    formula <- update.formula(
+        preds, 
+        paste(outcome, "~ .")
+    )
+    plm(
+        formula, 
+        index =c("iso", "year"),
+        effect = "twoways", 
+        model = "within",
+        data = finaldata
+    )
+}
+
+matmor_cc <- fit_model("maternal_mortality")
+under5_cc <- fit_model("under5_mortality")
+infant_cc <- fit_model("infant_mortality")
+neonatal_cc <- fit_model("neonatal_mortality")
+
+```
+
+## Run Multiple Imputation
+
+```{r}
+#| eval: false
+midata <- finaldata |>
+    mutate(iso_num = as.numeric(as.factor(iso))) |>
+    select(-iso)
+
+mice0 <- mice(
+    midata,
+    seed = 100, 
+    m = 10,
+    maxit = 0,
+    printFlag = FALSE
+)
+
+meth <- mice0$method
+continuous_vars <- c("urban", "male_edu", "temp", "rainfall_1000",
+"loggdp", "pop_dens", "maternal_mortality", "infant_mortality",
+"neonatal_mortality", "under5_mortality")
+
+meth[continuous_vars] <- "2l.lmer"
+
+pred <- mice0$predictorMatrix
+
+pred[continuous_vars, "iso_num"] <- -2
+
+mice.multi.out <- mice(
+    midata, 
+    seed = 100, 
+    m = 10, 
+    maxit = 20, 
+    method = meth, 
+    predictorMatrix = pred
+)
+dir.create(here("output"), showWarnings = FALSE)
+
+saveRDS(
+    mice.multi.out,
+    file = here("output", "mice_out_week8.rds")
+)
+```
+
+
+```{r}
+mice.multi.out <- readRDS(
+  here("output", "mice_out_week8.rds")
+)
+
+mice.multi.out$m
+mice.multi.out$iteration
+
+plot(mice.multi.out)
+```
+
+
+
+## Fitting the Four Models After Imputation
+
+
+```{r}
+mi_preds <- as.formula(
+    ~ -1 + armed_conflict + loggdp + oecd +
+    pop_dens + urban + age_dep + male_edu +
+    temp + rainfall_1000 + earthquake + drought +
+    as.factor(iso_num) + as.factor(year)
+)
+
+fit_mi <- function(outcome) {
+
+  model_formula <- update.formula(
+    mi_preds,
+    paste(outcome, "~ .")
+  )
+
+  fits <- lapply(
+    seq_len(mice.multi.out$m),
+    function(i) {
+      lm(
+        model_formula,
+        data = mice::complete(mice.multi.out, action = i)
+      )
+    }
+  )
+
+  mice::as.mira(fits)
+}
+
+matmor_mi <- fit_mi("maternal_mortality")
+under5_mi <- fit_mi("under5_mortality")
+infant_mi <- fit_mi("infant_mortality")
+neonatal_mi <- fit_mi("neonatal_mortality")
+
+matmor_pool <- pool(matmor_mi)
+under5_pool <- pool(under5_mi)
+infant_pool <- pool(infant_mi)
+neonatal_pool <- pool(neonatal_mi)
+
+```
+
+## Creating the Table 
+
+```{r}
+get_cc <- function(model) {
+
+  b <- coef(model)
+  se <- sqrt(diag(vcov(model)))
+
+  data.frame(
+    term = names(b),
+    CC = sprintf(
+      "%.2f (%.2f, %.2f)",
+      b,
+      b - 1.96 * se,
+      b + 1.96 * se
+    )
+  )
+}
+
+get_mi <- function(model) {
+
+  s <- summary(model, conf.int = TRUE)
+
+  data.frame(
+    term = s$term,
+    MI = sprintf(
+      "%.2f (%.2f, %.2f)",
+      s$estimate,
+      s[["2.5 %"]],
+      s[["97.5 %"]]
+    )
+  )
+}
+make_table <- function(cc_model, mi_model, outcome) {
+
+  cc <- get_cc(cc_model)
+  mi <- get_mi(mi_model)
+
+  merge(cc, mi, by = "term") |>
+    filter(term %in% all.vars(preds)) |>
+    mutate(Outcome = outcome)
+}
+
+table9 <- bind_rows(
+  make_table(matmor_cc, matmor_pool, "Maternal mortality"),
+  make_table(under5_cc, under5_pool, "Under-5 mortality"),
+  make_table(infant_cc, infant_pool, "Infant mortality"),
+  make_table(neonatal_cc, neonatal_pool, "Neonatal mortality")
+) |>
+  select(Outcome, term, CC, MI)
+
+table9_wide <- table9 |>
+  tidyr::pivot_longer(
+    cols = c(CC, MI),
+    names_to = "Analysis",
+    values_to = "Estimate"
+  ) |>
+  tidyr::pivot_wider(
+    names_from = Outcome,
+    values_from = Estimate
+  ) |>
+  mutate(
+    term = factor(term, levels = all.vars(preds)),
+    Analysis = factor(Analysis, levels = c("CC", "MI"))
+  ) |>
+  arrange(term, Analysis) |>
+  mutate(
+    term = as.character(term),
+    term = ifelse(Analysis == "MI", "", term)
+  )
+knitr::kable(
+  table9_wide,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "Comparison of Complete-Case and Multiple-Imputation Regression Results",
+  col.names = c(
+    "Predictor",
+    "Analysis",
+    "Maternal",
+    "Under-5",
+    "Infant",
+    "Neonatal"
+  ),
+  align = c("l", "c", "c", "c", "c", "c")
+) |>
+  kableExtra::kable_styling(
+    font_size = 7,
+    latex_options = c("hold_position", "scale_down"),
+    full_width = FALSE
+  )
+```
